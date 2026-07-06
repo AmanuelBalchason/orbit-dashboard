@@ -1,71 +1,112 @@
- import streamlit as st
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import datetime
 
 # 1. SETUP PAGE
 st.set_page_config(page_title="Orbit Ecosystem | Impact Dashboard", page_icon="🚀", layout="wide")
 
-# 2. SIDEBAR: LOGO, COMPANY & PLATFORM TOGGLES
-if os.path.exists("orbit_logo.png"):
-    st.sidebar.image("orbit_logo.png", use_container_width=True)
+# 2. SIDEBAR: TOGGLES & DYNAMIC LOGOS
+company = st.sidebar.radio("🏢 Select Organization", ["Orbit Innovation Hub", "Orbit Health"])
+
+if company == "Orbit Innovation Hub" and os.path.exists("oih_logo.png"):
+    st.sidebar.image("oih_logo.png", use_container_width=True)
+elif company == "Orbit Health" and os.path.exists("oh_logo.png"):
+    st.sidebar.image("oh_logo.png", use_container_width=True)
 else:
-    st.sidebar.title("Orbit Ecosystem")
+    st.sidebar.title(company)
 
 st.sidebar.divider()
 
-# Feature 4: Sister Company Toggle
-company = st.sidebar.radio("🏢 Select Organization", ["Orbit Innovation Hub", "Orbit Health"])
-
-# Feature 3: Multi-Platform Toggle
 platform = st.sidebar.selectbox("📱 Select Platform", ["LinkedIn", "Facebook", "X (Twitter)", "Telegram", "TikTok", "Instagram"])
 
 st.sidebar.divider()
 
-# 3. SMART DATA LOADER (Scalable for multiple companies/platforms)
+# 3. SMART SCALABLE DATA LOADER
 @st.cache_data
-def load_csv(filename, skip_rows=0, date_col=None):
-    # In the future, you can organize folders like: data/OIH/LinkedIn/metrics.csv
-    # For now, it defaults to your existing data folder
-    filepath = os.path.join("data", filename)
+def load_csv(company_name, platform_name, filename, skip_rows=0, date_col=None):
+    comp_folder = company_name.replace(" ", "_")
+    plat_folder = "X" if platform_name == "X (Twitter)" else platform_name
+    
+    # Path logic checking both GitHub root (if flattened) and Local 'data' folder
+    filepath_local = os.path.join("data", comp_folder, plat_folder, filename)
+    filepath_github = os.path.join("data", comp_folder, "LinkedIn", filename) # fallback for current github structure
+    
+    filepath = filepath_local if os.path.exists(filepath_local) else filepath_github
+    
     if os.path.exists(filepath):
-        df = pd.read_csv(filepath, skiprows=skip_rows)
-        if date_col and date_col in df.columns:
-            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-            df = df.dropna(subset=[date_col]).sort_values(date_col)
-        return df
+        try:
+            df = pd.read_csv(filepath, skiprows=skip_rows)
+            if date_col and date_col in df.columns:
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                df = df.dropna(subset=[date_col]).sort_values(date_col)
+            return df
+        except:
+            return pd.DataFrame()
     return pd.DataFrame()
 
-# Load datasets based on the selected company & platform
-# (For the prototype, it still loads your provided LinkedIn data)
-df_metrics = load_csv("Content - Metrics.csv", skip_rows=1, date_col="Date")
-df_posts = load_csv("Content - All posts.csv", skip_rows=1, date_col="Created date")
-df_competitors = load_csv("Competitor Analytics - COMPETITORS.csv", skip_rows=1)
-df_visitors = load_csv("Visitors - Visitor metrics.csv", date_col="Date")
-df_followers_growth = load_csv("Followers - New followers.csv", date_col="Date")
+# Load datasets
+df_metrics = load_csv(company, platform, "Content - Metrics.csv", skip_rows=1, date_col="Date")
+df_posts = load_csv(company, platform, "Content - All posts.csv", skip_rows=1, date_col="Created date")
+df_competitors = load_csv(company, platform, "Competitor Analytics - COMPETITORS.csv", skip_rows=1)
+df_visitors = load_csv(company, platform, "Visitors - Visitor metrics.csv", date_col="Date")
+df_followers_growth = load_csv(company, platform, "Followers - New followers.csv", date_col="Date")
 
-# Date Filter
-st.sidebar.subheader("📅 Filter by Date")
+# 4. DUAL-SYNCED DATE FILTERS
+st.sidebar.subheader("📅 Filter by Specific Dates")
+min_date, max_date = datetime.date(2025, 1, 1), datetime.date(2026, 12, 31)
+
 if not df_metrics.empty:
     min_date = df_metrics['Date'].min().date()
     max_date = df_metrics['Date'].max().date()
-    
-    start_date, end_date = st.sidebar.slider(
-        "Select Range",
-        min_value=min_date, max_value=max_date,
-        value=(min_date, max_date)
-    )
-    
-    # Filter time-series data
-    df_metrics = df_metrics[(df_metrics['Date'].dt.date >= start_date) & (df_metrics['Date'].dt.date <= end_date)]
 
-# 4. HEADER
+if "date_range" not in st.session_state:
+    st.session_state.date_range = (min_date, max_date)
+
+def sync_from_slider():
+    st.session_state.date_range = st.session_state.slider_key
+
+def sync_from_calendar():
+    if len(st.session_state.cal_key) == 2:
+        st.session_state.date_range = st.session_state.cal_key
+
+st.sidebar.slider(
+    "Drag to select dates:",
+    min_value=min_date, max_value=max_date,
+    key="slider_key",
+    value=st.session_state.date_range,
+    on_change=sync_from_slider
+)
+
+st.sidebar.date_input(
+    "Or type/click specific dates:",
+    min_value=min_date, max_value=max_date,
+    key="cal_key",
+    value=st.session_state.date_range,
+    on_change=sync_from_calendar
+)
+
+start_date, end_date = st.session_state.date_range
+
+if not df_metrics.empty:
+    df_metrics = df_metrics[(df_metrics['Date'].dt.date >= start_date) & (df_metrics['Date'].dt.date <= end_date)]
+if not df_posts.empty:
+    df_posts = df_posts[(df_posts['Created date'].dt.date >= start_date) & (df_posts['Created date'].dt.date <= end_date)]
+if not df_visitors.empty:
+    df_visitors = df_visitors[(df_visitors['Date'].dt.date >= start_date) & (df_visitors['Date'].dt.date <= end_date)]
+
+# 5. HEADER & TOP KPIs
 st.title(f"🚀 {company} Impact Dashboard")
 st.write(f"Currently viewing analytics for **{platform}**")
 
-# Top KPIs
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(label=f"Total {platform} Followers", value="9,884", delta="Verified")
+
+if not df_followers_growth.empty:
+    current_followers = df_followers_growth['Total followers'].max()
+    col1.metric(label=f"Total {platform} Followers", value=f"{current_followers:,.0f}", delta="Verified")
+else:
+    col1.metric(label=f"Total {platform} Followers", value="9,884", delta="Verified")
 
 if not df_metrics.empty:
     total_imp = df_metrics['Impressions (total)'].sum()
@@ -75,10 +116,12 @@ if not df_metrics.empty:
     col2.metric(label="Total Impressions", value=f"{total_imp:,.0f}")
     col3.metric(label="Total Clicks", value=f"{total_clicks:,.0f}")
     col4.metric(label="Avg. Engagement Rate", value=f"{avg_er:.2f}%")
+else:
+    st.warning(f"⚠️ We couldn't find the data files for {company} on {platform}. Please ensure files are placed in `data/{company.replace(' ', '_')}/{platform}/`")
 
 st.divider()
 
-# 5. TABS
+# 6. PROGRESSIVE DISCLOSURE: TABS
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Content Performance", "👥 Audience Demographics", "📈 Traffic & Growth", "🏆 Competitors"])
 
 # --- TAB 1: CONTENT PERFORMANCE ---
@@ -98,6 +141,8 @@ with tab1:
         with st.expander("📂 View Top Performing Posts (Raw Data)"):
             display_cols = ['Created date', 'Post title', 'Impressions', 'Clicks', 'Engagement rate']
             st.dataframe(df_posts[display_cols].sort_values(by="Impressions", ascending=False), use_container_width=True)
+    else:
+        st.info("No content data available for this date range/platform.")
 
 # --- TAB 2: AUDIENCE DEMOGRAPHICS ---
 with tab2:
@@ -109,7 +154,7 @@ with tab2:
         demo_category = st.radio("Select Demographic Category:", ["Seniority", "Job function", "Company size", "Industry", "Location"], horizontal=True)
     
     demo_file = f"{user_type} - {demo_category}.csv"
-    df_demo = load_csv(demo_file)
+    df_demo = load_csv(company, platform, demo_file)
     
     if not df_demo.empty:
         y_col = "Total followers" if user_type == "Followers" else "Total views"
@@ -124,18 +169,24 @@ with tab2:
         with st.expander(f"📂 View raw {user_type} {demo_category} data"):
             st.dataframe(df_demo, use_container_width=True)
     else:
-        st.info(f"Data for {demo_file} is not available for {platform} yet.")
+        st.info(f"Demographic data is not yet available for {platform}.")
 
 # --- TAB 3: TRAFFIC & GROWTH ---
 with tab3:
     if not df_visitors.empty:
+        st.subheader("Page Traffic (Desktop vs Mobile)")
         fig_traffic = px.area(df_visitors, x="Date", y=["Total page views (mobile)", "Total page views (desktop)"], 
-                              title="Page Views over Time", color_discrete_sequence=['#005B5C', '#A3D9D3'])
+                              color_discrete_sequence=['#005B5C', '#A3D9D3'])
         st.plotly_chart(fig_traffic, use_container_width=True)
+    else:
+        st.info("Traffic data not available.")
 
 # --- TAB 4: COMPETITORS ---
 with tab4:
     if not df_competitors.empty:
+        st.subheader("How do we stack up?")
         fig_comp = px.bar(df_competitors, x="Page", y="New Followers", color="Page", 
                           title="New Followers vs Competitors", color_discrete_sequence=['#005B5C', '#6c757d'])
         st.plotly_chart(fig_comp, use_container_width=True)
+    else:
+        st.info("Competitor data not available.")
