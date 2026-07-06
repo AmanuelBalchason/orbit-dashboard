@@ -112,23 +112,17 @@ col1, col2, col3, col4 = st.columns(4)
 
 # Dynamic Follower KPI
 if not df_followers_growth.empty:
-    current_followers = df_followers_growth['Total followers'].max()
-    col1.metric(label=f"Total {platform} Followers", value=f"{current_followers:,.0f}", delta="Verified")
-else:
-    col1.metric(label=f"Total {platform} Followers", value="No data", delta="--")
-
-if not df_metrics.empty:
-    total_imp = df_metrics['Impressions (total)'].sum()
-    total_clicks = df_metrics['Clicks (total)'].sum()
-    avg_er = df_metrics['Engagement rate (total)'].mean() * 100
+    # Use .sum() to calculate all followers accumulated in the selected date range
+    accumulated_followers = df_followers_growth['Total followers'].sum()
     
-    col2.metric(label="Total Impressions", value=f"{total_imp:,.0f}")
-    col3.metric(label="Total Clicks", value=f"{total_clicks:,.0f}")
-    col4.metric(label="Avg. Engagement Rate", value=f"{avg_er:.2f}%")
+    # Optional: If you prefer to show your absolute page total (9,884) with the accumulated amount as the green arrow, you can use this:
+    if company == "Orbit Innovation Hub" and platform == "LinkedIn":
+        col1.metric(label=f"Total {platform} Followers", value="9,884", delta=f"+{accumulated_followers:,.0f} in selected dates")
+    else:
+        # For all other platforms, it will just show the accumulated sum as the main number
+        col1.metric(label=f"Accumulated {platform} Followers", value=f"{accumulated_followers:,.0f}", delta="In selected date range")
 else:
-    st.warning(f"⚠️ Data not found! Please ensure your CSV files are placed in `data/{company.replace(' ', '_')}/{platform}/`")
-
-st.divider()
+    col1.metric(label=f"Accumulated {platform} Followers", value="No data", delta="--")
 
 # 6. PROGRESSIVE DISCLOSURE: TABS
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Content Performance", "👥 Audience Demographics", "📈 Traffic & Growth", "🏆 Competitors"])
