@@ -7,13 +7,20 @@ import datetime
 # 1. SETUP PAGE
 st.set_page_config(page_title="Orbit Ecosystem | Impact Dashboard", page_icon="🚀", layout="wide")
 
+# Get the absolute path of the directory where app.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # 2. SIDEBAR: TOGGLES & DYNAMIC LOGOS
 company = st.sidebar.radio("🏢 Select Organization", ["Orbit Innovation Hub", "Orbit Health"])
 
-if company == "Orbit Innovation Hub" and os.path.exists("oih_logo.png"):
-    st.sidebar.image("oih_logo.png", use_container_width=True)
-elif company == "Orbit Health" and os.path.exists("oh_logo.png"):
-    st.sidebar.image("oh_logo.png", use_container_width=True)
+# Build bulletproof paths to the logos
+oih_logo = os.path.join(BASE_DIR, "oih_logo.png")
+oh_logo = os.path.join(BASE_DIR, "oh_logo.png")
+
+if company == "Orbit Innovation Hub" and os.path.exists(oih_logo):
+    st.sidebar.image(oih_logo, use_container_width=True)
+elif company == "Orbit Health" and os.path.exists(oh_logo):
+    st.sidebar.image(oh_logo, use_container_width=True)
 else:
     st.sidebar.title(company)
 
@@ -29,11 +36,11 @@ def load_csv(company_name, platform_name, filename, skip_rows=0, date_col=None):
     comp_folder = company_name.replace(" ", "_")
     plat_folder = "X" if platform_name == "X (Twitter)" else platform_name
     
-    # Path logic checking both GitHub root (if flattened) and Local 'data' folder
-    filepath_local = os.path.join("data", comp_folder, plat_folder, filename)
-    filepath_github = os.path.join("data", comp_folder, "LinkedIn", filename) # fallback for current github structure
+    # Build a bulletproof path to the data
+    filepath_local = os.path.join(BASE_DIR, "data", comp_folder, plat_folder, filename)
+    filepath_fallback = os.path.join(BASE_DIR, "data", comp_folder, "LinkedIn", filename) 
     
-    filepath = filepath_local if os.path.exists(filepath_local) else filepath_github
+    filepath = filepath_local if os.path.exists(filepath_local) else filepath_fallback
     
     if os.path.exists(filepath):
         try:
