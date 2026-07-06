@@ -108,21 +108,66 @@ if not df_visitors.empty:
 st.title(f"🚀 {company} Impact Dashboard")
 st.write(f"Currently viewing analytics for **{platform}**")
 
+# --- PRIMARY KPI ROW ---
 col1, col2, col3, col4 = st.columns(4)
 
-# Dynamic Follower KPI
 if not df_followers_growth.empty:
-    # Use .sum() to calculate all followers accumulated in the selected date range
     accumulated_followers = df_followers_growth['Total followers'].sum()
-    
-    # Optional: If you prefer to show your absolute page total (9,884) with the accumulated amount as the green arrow, you can use this:
     if company == "Orbit Innovation Hub" and platform == "LinkedIn":
         col1.metric(label=f"Total {platform} Followers", value="9,884", delta=f"+{accumulated_followers:,.0f} in selected dates")
     else:
-        # For all other platforms, it will just show the accumulated sum as the main number
         col1.metric(label=f"Accumulated {platform} Followers", value=f"{accumulated_followers:,.0f}", delta="In selected date range")
 else:
     col1.metric(label=f"Accumulated {platform} Followers", value="No data", delta="--")
+
+if not df_metrics.empty:
+    total_imp = df_metrics['Impressions (total)'].sum()
+    total_clicks = df_metrics['Clicks (total)'].sum()
+    avg_er = df_metrics['Engagement rate (total)'].mean() * 100
+    
+    col2.metric(label="Total Impressions", value=f"{total_imp:,.0f}")
+    col3.metric(label="Total Clicks", value=f"{total_clicks:,.0f}")
+    col4.metric(label="Avg. Engagement Rate", value=f"{avg_er:.2f}%")
+else:
+    st.warning(f"⚠️ We couldn't find the data files for {company} on {platform}. Please ensure files are placed in `data/{company.replace(' ', '_')}/{platform}/`")
+
+st.markdown("<br>", unsafe_allow_html=True) # Adds a little breathing room
+
+# --- SECONDARY KPI ROW (DEEP DIVE METRICS) ---
+st.markdown("#### 🔍 Engagement & Traffic Deep Dive")
+col5, col6, col7, col8, col9 = st.columns(5)
+
+# Calculate Content & Interaction Metrics
+if not df_metrics.empty:
+    total_reactions = df_metrics['Reactions (total)'].sum()
+    total_comments = df_metrics['Comments (total)'].sum()
+    total_reposts = df_metrics['Reposts (total)'].sum()
+    
+    # Calculate Total Posts from the Posts CSV
+    total_posts = len(df_posts) if not df_posts.empty else 0
+    
+    col5.metric(label="Total Posts", value=f"{total_posts}")
+    col6.metric(label="Reactions (Likes)", value=f"{total_reactions:,.0f}")
+    col7.metric(label="Comments", value=f"{total_comments:,.0f}")
+    col8.metric(label="Reposts (Shares)", value=f"{total_reposts:,.0f}")
+else:
+    col5.metric(label="Total Posts", value="0")
+    col6.metric(label="Reactions", value="0")
+    col7.metric(label="Comments", value="0")
+    col8.metric(label="Reposts", value="0")
+
+# Calculate Profile Traffic Metrics
+if not df_visitors.empty:
+    # If the platform has visitor metrics (like LinkedIn page views)
+    if 'Total page views (total)' in df_visitors.columns:
+        total_page_views = df_visitors['Total page views (total)'].sum()
+        col9.metric(label="Profile Page Views", value=f"{total_page_views:,.0f}")
+    else:
+        col9.metric(label="Profile Page Views", value="N/A")
+else:
+    col9.metric(label="Profile Page Views", value="No data")
+
+st.divider()
 
 # 6. PROGRESSIVE DISCLOSURE: TABS
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Content Performance", "👥 Audience Demographics", "📈 Traffic & Growth", "🏆 Competitors"])
