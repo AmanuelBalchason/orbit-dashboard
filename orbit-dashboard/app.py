@@ -7,13 +7,13 @@ import datetime
 # 1. SETUP PAGE
 st.set_page_config(page_title="Orbit Ecosystem | Impact Dashboard", page_icon="🚀", layout="wide")
 
-# Get the absolute path of the directory where app.py is located
+# Get absolute path to the directory where app.py lives
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 2. SIDEBAR: TOGGLES & DYNAMIC LOGOS
 company = st.sidebar.radio("🏢 Select Organization", ["Orbit Innovation Hub", "Orbit Health"])
 
-# Build bulletproof paths to the logos
+# Bulletproof logo paths
 oih_logo = os.path.join(BASE_DIR, "oih_logo.png")
 oh_logo = os.path.join(BASE_DIR, "oh_logo.png")
 
@@ -36,11 +36,8 @@ def load_csv(company_name, platform_name, filename, skip_rows=0, date_col=None):
     comp_folder = company_name.replace(" ", "_")
     plat_folder = "X" if platform_name == "X (Twitter)" else platform_name
     
-    # Build a bulletproof path to the data
-    filepath_local = os.path.join(BASE_DIR, "data", comp_folder, plat_folder, filename)
-    filepath_fallback = os.path.join(BASE_DIR, "data", comp_folder, "LinkedIn", filename) 
-    
-    filepath = filepath_local if os.path.exists(filepath_local) else filepath_fallback
+    # This precisely maps to your new structure: data/Orbit_Innovation_Hub/LinkedIn/filename.csv
+    filepath = os.path.join(BASE_DIR, "data", comp_folder, plat_folder, filename)
     
     if os.path.exists(filepath):
         try:
@@ -49,7 +46,7 @@ def load_csv(company_name, platform_name, filename, skip_rows=0, date_col=None):
                 df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
                 df = df.dropna(subset=[date_col]).sort_values(date_col)
             return df
-        except:
+        except Exception as e:
             return pd.DataFrame()
     return pd.DataFrame()
 
@@ -62,15 +59,18 @@ df_followers_growth = load_csv(company, platform, "Followers - New followers.csv
 
 # 4. DUAL-SYNCED DATE FILTERS
 st.sidebar.subheader("📅 Filter by Specific Dates")
-min_date, max_date = datetime.date(2025, 1, 1), datetime.date(2026, 12, 31)
 
+# Set safe defaults
+min_date, max_date = datetime.date(2025, 1, 1), datetime.date(2026, 12, 31)
 if not df_metrics.empty:
     min_date = df_metrics['Date'].min().date()
     max_date = df_metrics['Date'].max().date()
 
+# Initialize session state for synced dates
 if "date_range" not in st.session_state:
     st.session_state.date_range = (min_date, max_date)
 
+# Callback functions to sync calendar and slider
 def sync_from_slider():
     st.session_state.date_range = st.session_state.slider_key
 
@@ -96,6 +96,7 @@ st.sidebar.date_input(
 
 start_date, end_date = st.session_state.date_range
 
+# Apply filters
 if not df_metrics.empty:
     df_metrics = df_metrics[(df_metrics['Date'].dt.date >= start_date) & (df_metrics['Date'].dt.date <= end_date)]
 if not df_posts.empty:
@@ -109,11 +110,12 @@ st.write(f"Currently viewing analytics for **{platform}**")
 
 col1, col2, col3, col4 = st.columns(4)
 
+# Dynamic Follower KPI
 if not df_followers_growth.empty:
     current_followers = df_followers_growth['Total followers'].max()
     col1.metric(label=f"Total {platform} Followers", value=f"{current_followers:,.0f}", delta="Verified")
 else:
-    col1.metric(label=f"Total {platform} Followers", value="9,884", delta="Verified")
+    col1.metric(label=f"Total {platform} Followers", value="No data", delta="--")
 
 if not df_metrics.empty:
     total_imp = df_metrics['Impressions (total)'].sum()
@@ -124,7 +126,7 @@ if not df_metrics.empty:
     col3.metric(label="Total Clicks", value=f"{total_clicks:,.0f}")
     col4.metric(label="Avg. Engagement Rate", value=f"{avg_er:.2f}%")
 else:
-    st.warning(f"⚠️ We couldn't find the data files for {company} on {platform}. Please ensure files are placed in `data/{company.replace(' ', '_')}/{platform}/`")
+    st.warning(f"⚠️ Data not found! Please ensure your CSV files are placed in `data/{company.replace(' ', '_')}/{platform}/`")
 
 st.divider()
 
@@ -148,8 +150,6 @@ with tab1:
         with st.expander("📂 View Top Performing Posts (Raw Data)"):
             display_cols = ['Created date', 'Post title', 'Impressions', 'Clicks', 'Engagement rate']
             st.dataframe(df_posts[display_cols].sort_values(by="Impressions", ascending=False), use_container_width=True)
-    else:
-        st.info("No content data available for this date range/platform.")
 
 # --- TAB 2: AUDIENCE DEMOGRAPHICS ---
 with tab2:
@@ -176,7 +176,7 @@ with tab2:
         with st.expander(f"📂 View raw {user_type} {demo_category} data"):
             st.dataframe(df_demo, use_container_width=True)
     else:
-        st.info(f"Demographic data is not yet available for {platform}.")
+        st.info(f"Demographic data for '{demo_file}' is not yet available for {platform}.")
 
 # --- TAB 3: TRAFFIC & GROWTH ---
 with tab3:
